@@ -1,0 +1,21 @@
+package platform.integration.domain;
+
+import jakarta.json.bind.annotation.JsonbNillable;
+
+/**
+ * DTO canónico de organización — contrato propio de la plataforma.
+ * Independiente de los modelos Python y tablas internas de Eden.
+ * Campos opcionales son null cuando Eden no los provee; nunca se fabrican valores ficticios.
+ */
+@JsonbNillable
+public record OrganizationDto(
+    String id,
+    String name,
+    String typeId,
+    String acronym,
+    String country,
+    String locationId,
+    String phone,
+    String email,
+    String description
+) { }

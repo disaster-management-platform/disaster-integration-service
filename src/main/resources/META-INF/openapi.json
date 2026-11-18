@@ -1,0 +1,107 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Integration Service",
+    "version": "1.0.0",
+    "description": "Mediador entre la plataforma de gestión de desastres y Sahana Eden. Implementa Anti-Corruption Layer con Ports and Adapters."
+  },
+  "servers": [{ "url": "/api", "description": "WildFly local" }],
+  "components": {
+    "securitySchemes": {
+      "jwt": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" }
+    },
+    "schemas": {
+      "OrganizationDto": {
+        "type": "object",
+        "required": ["id", "name"],
+        "properties": {
+          "id":          { "type": "string", "description": "Identificador opaco y estable del proveedor externo" },
+          "name":        { "type": "string" },
+          "typeId":      { "type": "string", "nullable": true, "description": "Identificador del tipo de organización" },
+          "acronym":     { "type": "string", "nullable": true },
+          "country":     { "type": "string", "nullable": true },
+          "locationId":  { "type": "string", "nullable": true, "description": "Referencia de entidad física (pe_id)" },
+          "phone":       { "type": "string", "nullable": true },
+          "email":       { "type": "string", "nullable": true },
+          "description": { "type": "string", "nullable": true }
+        }
+      },
+      "OrganizationPage": {
+        "type": "object",
+        "required": ["items", "page", "pageSize", "total"],
+        "properties": {
+          "items":    { "type": "array", "items": { "$ref": "#/components/schemas/OrganizationDto" } },
+          "page":     { "type": "integer" },
+          "pageSize": { "type": "integer" },
+          "total":    { "type": "integer", "description": "Total real de registros en Eden; puede ser estimado cuando Eden no provee el valor exacto" }
+        }
+      },
+      "Health": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "enum": ["UP", "DOWN"] },
+          "service": { "type": "string" },
+          "eden":    { "type": "string", "enum": ["REACHABLE", "UNREACHABLE"] }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "integer" },
+          "detail": { "type": "string" }
+        }
+      }
+    },
+    "responses": {
+      "401": { "description": "JWT ausente o inválido", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "403": { "description": "Permisos insuficientes",  "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "502": { "description": "Respuesta inválida del proveedor externo", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "503": { "description": "Dependencia indisponible", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "504": { "description": "Timeout externo",         "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+    }
+  },
+  "security": [{ "jwt": [] }],
+  "paths": {
+    "/organizaciones": {
+      "get": {
+        "summary": "Directorio de organizaciones",
+        "description": "Consulta las organizaciones registradas en Eden. Requiere rol org.read, org.admin o platform.admin.",
+        "operationId": "listOrganizations",
+        "parameters": [
+          { "name": "q",       "in": "query", "schema": { "type": "string" }, "description": "Filtro por nombre" },
+          { "name": "pagina",  "in": "query", "schema": { "type": "integer", "default": 0 }, "description": "Página base 0" },
+          { "name": "tamanio", "in": "query", "schema": { "type": "integer", "default": 25, "maximum": 100 }, "description": "Tamaño de página" }
+        ],
+        "responses": {
+          "200": { "description": "Página de organizaciones canónica", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OrganizationPage" } } } },
+          "401": { "$ref": "#/components/responses/401" },
+          "403": { "$ref": "#/components/responses/403" },
+          "502": { "$ref": "#/components/responses/502" },
+          "503": { "$ref": "#/components/responses/503" },
+          "504": { "$ref": "#/components/responses/504" }
+        }
+      }
+    },
+    "/integracion/diagnostico/live": {
+      "get": {
+        "summary": "Liveness del Integration Service",
+        "description": "Verifica el estado propio del servicio, independiente de Eden.",
+        "operationId": "live",
+        "security": [],
+        "responses": { "200": { "description": "Servicio operativo", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Health" } } } } }
+      }
+    },
+    "/integracion/diagnostico/ready": {
+      "get": {
+        "summary": "Readiness del Integration Service",
+        "description": "Comprueba de forma acotada que Eden es alcanzable. No consulta el inventario completo.",
+        "operationId": "ready",
+        "security": [],
+        "responses": {
+          "200": { "description": "Eden alcanzable", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Health" } } } },
+          "503": { "$ref": "#/components/responses/503" }
+        }
+      }
+    }
+  }
+}
