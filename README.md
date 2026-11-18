@@ -51,3 +51,7 @@ Las pruebas de fallos se ejecutan con `--faults`, INTEGRATION_TEST_URL apuntando
 ## Personas afectadas (07B.2)
 
 La plantilla platform de sahana-eden habilita PR/DVR/CR/EVENT con política nativa de realms organizacionales. Registro, familias, expedientes y refugios se operan en Eden mediante sus interfaces nativas; no existe todavía un consumidor implementado que justifique duplicar esas operaciones en Jakarta. El permiso org.read del directorio global no concede acceso a datos personales. Las identidades técnicas y las sesiones web de Eden se aprovisionan por organización y nunca utilizan al administrador en runtime. No se realiza conversión implícita de disasterId a un identificador EVENT de Eden.
+
+## Recursos (07C.1)
+
+SUPPLY/INV/REQ se consumen y operan mediante las interfaces nativas de Eden: catálogo, almacenes, ajustes de existencias, solicitudes y compromisos. La plantilla platform y sus pruebas de integración están versionadas en sahana-eden. Las identidades técnicas logísticas son distintas de las de personas y se restringen al realm organizacional; el administrador solo aprovisiona. No hay un consumidor implementado que requiera endpoints Jakarta adicionales, ni se confunde inventario con financiación. El compromiso de recursos no representa una entrega confirmada. Futuras APIs de la plataforma deberán consumir las operaciones nativas, sin replicar validaciones ni tablas de Eden.
