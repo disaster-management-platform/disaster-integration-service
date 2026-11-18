@@ -47,3 +47,7 @@ python3 scripts/test_integration.py --targeted
 El script usa issuer y audiencia externos. La variante dirigida comprueba traducción real, dos páginas y fin, parámetros inválidos y configuración JWT. El OpenAPI publicado en src/main/resources/META-INF/openapi.json describe únicamente las tres operaciones existentes. No hay persistencia, acceso a tablas Eden, Supabase ni modificaciones a otros dominios.
 
 Las pruebas de fallos se ejecutan con `--faults`, INTEGRATION_TEST_URL apuntando a una instancia aislada y INTEGRATION_TEST_FAULT_CONTROL apuntando al control del proxy de fallos de pruebas. Cubren credenciales técnicas inválidas, caída/recuperación, redirecciones, cuerpo inválido, exceso de bytes y recepción lenta. El fixture de tipos múltiples y ubicación no se presenta como datos reales de Eden.
+
+## Personas afectadas (07B.2)
+
+La plantilla platform de sahana-eden habilita PR/DVR/CR/EVENT con política nativa de realms organizacionales. Registro, familias, expedientes y refugios se operan en Eden mediante sus interfaces nativas; no existe todavía un consumidor implementado que justifique duplicar esas operaciones en Jakarta. El permiso org.read del directorio global no concede acceso a datos personales. Las identidades técnicas y las sesiones web de Eden se aprovisionan por organización y nunca utilizan al administrador en runtime. No se realiza conversión implícita de disasterId a un identificador EVENT de Eden.
