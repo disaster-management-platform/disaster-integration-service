@@ -1,167 +1,49 @@
 # Integration Service
 
-Servicio Jakarta EE 11, Java 21, WildFly 42.0.0.Final — mediador entre la plataforma de gestión de desastres y Sahana Eden.
-Implementa Anti-Corruption Layer (Ports and Adapters) para encapsular los modelos, protocolos y mecanismos de autenticación de Eden.
+Java 21, Jakarta EE 11, WildFly Preview 42, JAX-RS, Stateless EJB y CDI. Un WAR mantiene REST Resource → OrganizationService → OrganizationPort → OrganizationAdapter → EdenHttpClient → API nativa Eden. El EJB usa NOT_SUPPORTED: ninguna transacción JTA permanece abierta durante HTTP.
 
-## Endpoints
+## Contrato
 
-| Método | Ruta | Autenticación | Rol requerido |
-|--------|------|---------------|---------------|
-| `GET` | `/api/organizaciones` | JWT Bearer | `org.read`, `org.admin` o `platform.admin` |
-| `GET` | `/api/integracion/diagnostico/live` | Ninguna | — |
-| `GET` | `/api/integracion/diagnostico/ready` | Ninguna | — |
+GET /api/organizaciones requiere JWT con org.read, org.admin o platform.admin, sub y organization_id. Es un directorio global autorizado de organizaciones; este permiso no habilita personas, familias ni expedientes. La autorización precede a las consultas externas.
 
-Parámetros de `/api/organizaciones`:
+Parámetros públicos: q (hasta 200 caracteres), pagina (base cero, no negativa), tamanio (1–100; predeterminado 25). Los valores explícitamente inválidos o desplazamientos que desbordan integer producen 400. Se retiraron alias no documentados sin consumidores.
 
-| Parámetro | Tipo | Default | Descripción |
-|-----------|------|---------|-------------|
-| `q` | string | — | Filtro por nombre |
-| `pagina` | integer | 0 | Página base 0 |
-| `tamanio` | integer | 25 (máx. 100) | Tamaño de página |
+Respuesta: items, page, pageSize, total: null, hasMore. Se solicita un registro adicional a Eden para conocer la página siguiente; no se descarga el directorio completo ni se devuelve X-Total-Count estimado. La paginación no ofrece un snapshot transaccional frente a cambios simultáneos en Eden.
 
-Contrato de respuesta (`OrganizationDto`):
+Cada organización conserva id, name, typeId, acronym, country, locationId, phone, email y description. typeIds añade todos los identificadores numéricos nativos de org_organisation_type, como strings estables. typeId solo se informa cuando existe un único tipo. ORG-01 debe admitir typeId null y utilizar typeIds para tipos múltiples, sin fabricar un primario. locationId procede del componente nativo organisation_location.location_id (gis_location); es null cuando no existe una única ubicación. pe_id referencia pr_pentity y nunca se publica como ubicación. Las asociaciones geográficas se consultan con límite 2; no se elige arbitrariamente una entre varias.
 
-```json
-{
-  "items": [
-    {
-      "id": "1",
-      "name": "Cruz Roja",
-      "typeId": null,
-      "acronym": null,
-      "country": null,
-      "locationId": "3",
-      "phone": null,
-      "email": null,
-      "description": null
-    }
-  ],
-  "page": 0,
-  "pageSize": 25,
-  "total": 2
-}
-```
+Referencias revisadas: Eden 6.3, org.py, relación org_organisation_organisation_type y componente org_organisation_location; el exportador JSON devuelve IDs sin represent=true. Una respuesta malformada produce 502, sin omitir filas silenciosamente.
 
-Los campos opcionales son `null` cuando Eden no los provee; nunca se fabrican valores ficticios.
-`total` puede ser una estimación conservadora cuando Eden no lo devuelve en la respuesta de lista.
+GET /api/integracion/diagnostico/live es independiente de Eden. GET /api/integracion/diagnostico/ready realiza una consulta ORG mínima autenticada y valida su estructura. Credenciales técnicas rechazadas, redirecciones y datos inválidos producen readiness 503. No se confunden con el JWT inválido del consumidor (401/403).
 
-## Compilación
+## Configuración y ejecución
 
 ```sh
 mvn package
-```
-
-Produce `target/integration-service.war` (~22 KB).
-
-## Ejecución en WildFly 42
-
-WildFly Preview es necesario para Jakarta EE 11 y MicroProfile JWT completo.
-
-1. Iniciar WildFly con variables de entorno externas:
-
-```sh
-export JWT_ISSUER=https://keycloak.example.com/realms/platform
-export JWT_PUBLIC_KEY_LOCATION=https://keycloak.example.com/realms/platform/protocol/openid-connect/certs
+export JWT_ISSUER=https://identity.example.org
 export JWT_AUDIENCE=integration-service
-
+export JWT_PUBLIC_KEY_LOCATION=https://identity.example.org/jwks
 export EDEN_BASE_URL=http://127.0.0.1:8001/eden_default
-export EDEN_TECH_USER=integration@example.com
-export EDEN_TECH_PASSWORD=<contraseña_identidad_tecnica>
-
-$WILDFLY_HOME/bin/standalone.sh
+export EDEN_TECH_USER=integration-reader@example.org
+# Cargue EDEN_TECH_PASSWORD desde un secreto externo.
+"$WILDFLY_HOME/bin/standalone.sh"
+"$WILDFLY_HOME/bin/jboss-cli.sh" --connect --command="deploy target/integration-service.war"
 ```
 
-2. Desplegar el WAR:
+MicroProfile Config enlaza JWT_ISSUER, JWT_AUDIENCE y JWT_PUBLIC_KEY_LOCATION con las propiedades MP-JWT. WildFly verifica firma, issuer, audiencia y expiración; role se interpreta como grupos. No se implementa un proveedor de identidad. El contexto es / y no debe compartirlo con otra aplicación.
+
+HTTPS es obligatorio fuera de loopback, salvo autorización explícita de desarrollo mediante EDEN_ALLOW_DEVELOPMENT_HTTP=true. TLS conserva la validación del sistema; no se deshabilitan certificados. Nunca utilice credenciales administrativas. El administrador de Eden debe conceder únicamente lectura ORG y lectura del componente geográfico, sin escritura ni administración; los permisos sobre otros módulos deben revisarse en el despliegue correspondiente.
+
+El HttpClient reutilizable tiene conexión de 5 s y recepción total de 10 s, máximo 4 MiB y 8 operaciones concurrentes por instancia. El exceso cancela la recepción; la saturación devuelve 503. Los fallos transitorios se recuperan en la siguiente solicitud sin reiniciar WildFly. No se registran cuerpos, credenciales ni mensajes externos. Las consultas geográficas añaden solicitudes acotadas por organización; se prefiere semántica correcta a referencias inventadas.
+
+## Validación dirigida
 
 ```sh
-$WILDFLY_HOME/bin/jboss-cli.sh --connect --command="deploy target/integration-service.war"
+export INTEGRATION_TEST_URL=http://127.0.0.1:8420/api
+export INTEGRATION_TEST_PRIVATE_KEY=/ruta/privada/test.pem
+python3 scripts/test_integration.py --targeted
 ```
 
-El contexto HTTP es `/`; no instale este WAR en el mismo contexto raíz de otra aplicación.
+El script usa issuer y audiencia externos. La variante dirigida comprueba traducción real, dos páginas y fin, parámetros inválidos y configuración JWT. El OpenAPI publicado en src/main/resources/META-INF/openapi.json describe únicamente las tres operaciones existentes. No hay persistencia, acceso a tablas Eden, Supabase ni modificaciones a otros dominios.
 
-## Variables de entorno
-
-| Variable | Descripción |
-|----------|-------------|
-| `JWT_ISSUER` | Issuer del JWT de la plataforma (Keycloak). |
-| `JWT_PUBLIC_KEY_LOCATION` | JWKS HTTPS o clave pública PEM del emisor. |
-| `JWT_AUDIENCE` | Audiencia esperada en el JWT. |
-| `EDEN_BASE_URL` | URL base de la aplicación Eden `default` (sin barra final). |
-| `EDEN_TECH_USER` | Email de la identidad técnica restringida en Eden. |
-| `EDEN_TECH_PASSWORD` | Contraseña de la identidad técnica. Nunca administrativa. |
-
-Configure MicroProfile JWT externamente via MicroProfile Config, variables de entorno o propiedades JVM.
-No se proporcionan claves predeterminadas ni credenciales en el repositorio.
-
-## Identidad técnica de Eden
-
-Crear en Eden una cuenta de solo lectura específica para el servicio:
-
-```
-Email:    integration@example.com   (no usar admin@example.com)
-Password: <contraseña_fuerte>
-Rol:      Organisation Manager (lectura) o equivalente mínimo
-```
-
-Usar `admin@example.com` exclusivamente para crear esta cuenta.
-La identidad técnica no debe tener permisos administrativos en Eden.
-
-## Seguridad JWT
-
-El JWT debe incluir:
-- `sub`: identificador del actor.
-- `organization_id`: organización del consumidor.
-- `role`: `org.read`, `org.admin` o `platform.admin` para acceder al directorio.
-- `iat`, `exp`, `iss`, `aud` conforme a MP-JWT.
-
-`smallrye.jwt.path.groups=role` utiliza el claim `role` como fuente de grupos/roles.
-
-## Integración con YARP (pendiente)
-
-Ruta a enrutar desde el Gateway:
-
-```
-/api/organizaciones         → http://<wildfly-host>:8080/api/organizaciones
-/api/integracion/diagnostico → http://<wildfly-host>:8080/api/integracion/diagnostico
-```
-
-El Gateway debe reenviar el encabezado `Authorization: Bearer <JWT>` sin modificarlo.
-La autenticación técnica contra Eden es responsabilidad exclusiva del Integration Service.
-
-## Arquitectura
-
-Implementa Ports and Adapters (Hexagonal Architecture) dentro de un servicio SBA:
-
-```
-JAX-RS Resource          ← adaptador de entrada
-  ↓ Identity (CDI)       ← verificación JWT MP-JWT
-  ↓ OrganizationService  ← EJB Stateless (caso de uso)
-  ↓ OrganizationPort     ← puerto de salida (contrato)
-  ↓ OrganizationAdapter  ← adaptador ACL Eden
-  ↓ EdenHttpClient       ← cliente HTTP reutilizable
-  ↓ Eden REST API        ← proveedor externo
-```
-
-Patrones aplicados: Anti-Corruption Layer, Adapter, DTO, Mapper/Translator, Stateless Components,
-Dependency Inversion, Information Hiding, Fault Isolation, Timeout, Connection Reuse.
-
-## Decisiones y trade-offs
-
-| Decisión | Razón | Trade-off |
-|----------|-------|-----------|
-| `java.net.http.HttpClient` singleton CDI | Reutilización de conexiones; sin dependencias adicionales | No admite reconexión automática; se recupera en la siguiente solicitud |
-| Sin persistencia en 07B.1 | La consulta de organizaciones es stateless; no requiere correlación de IDs | Las correspondencias durables (futuras) requerirán esquema independiente |
-| `total` estimado | Eden no incluye total en la respuesta de lista; calcular requeriría una segunda solicitud | El consumidor conoce que puede haber más páginas pero no el total exacto |
-| Basic Auth técnica | Eden 6.3/web2py admite Basic Auth sobre HTTP en entorno local controlado | En producción debe usarse HTTPS entre Integration Service y Eden |
-| Roles propios de la plataforma | Desacopla el modelo de permisos de Eden del de la plataforma | Requiere coordinación al incorporar nuevos módulos Eden |
-
-## Contratos OpenAPI
-
-Disponible en `src/main/resources/META-INF/openapi.json`.
-
-## Limitaciones menores (07B.1)
-
-- `total` en la respuesta es una estimación conservadora; Eden 6.3 no expone totales en la lista JSON.
-- Los campos `country`, `phone`, `email` son `null` en la instancia `default` actual (sin datos de contacto cargados).
-- `typeId` es `null` si la organización no tiene tipo asignado en Eden.
-- HTTPS entre Integration Service y Eden queda pendiente para entornos de producción.
+Las pruebas de fallos se ejecutan con `--faults`, INTEGRATION_TEST_URL apuntando a una instancia aislada y INTEGRATION_TEST_FAULT_CONTROL apuntando al control del proxy de fallos de pruebas. Cubren credenciales técnicas inválidas, caída/recuperación, redirecciones, cuerpo inválido, exceso de bytes y recepción lenta. El fixture de tipos múltiples y ubicación no se presenta como datos reales de Eden.

@@ -9,6 +9,7 @@ Validates:
 5. Error handling
 """
 
+import os
 import sys
 import time
 import json
@@ -16,20 +17,20 @@ import urllib.request
 import urllib.error
 import jwt
 
-BASE_URL = "http://127.0.0.1:8180/api"
-PRIVATE_KEY_PATH = "/tmp/jwt-keys/private.pem"
+BASE_URL = os.environ["INTEGRATION_TEST_URL"].rstrip("/")
+PRIVATE_KEY_PATH = os.environ["INTEGRATION_TEST_PRIVATE_KEY"]
 
 with open(PRIVATE_KEY_PATH, "r") as f:
     PRIVATE_KEY = f.read()
 
-def create_token(sub="user-123", org="org-abc", role="org.read", exp_offset=3600, iss="test-issuer", aud="integration-service"):
+def create_token(sub="user-123", org="org-abc", role="org.read", exp_offset=3600, iss=None, aud=None):
     now = int(time.time())
     payload = {
         "sub": sub,
         "organization_id": org,
         "role": [role] if isinstance(role, str) else role,
-        "iss": iss,
-        "aud": aud,
+        "iss": iss or os.environ["JWT_ISSUER"],
+        "aud": aud or os.environ["JWT_AUDIENCE"],
         "iat": now,
         "exp": now + exp_offset
     }
@@ -47,7 +48,7 @@ def request(path, token=None, params=None):
 
     req = urllib.request.Request(url, headers=headers)
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=15) as resp:
             body = resp.read().decode("utf-8")
             data = json.loads(body) if body else None
             return resp.status, data, dict(resp.headers)
@@ -152,6 +153,42 @@ def run_tests():
     print(f"==========================================")
     return passed == total
 
+def targeted():
+    token=create_token()
+    status,first,headers=request("/organizaciones",token, {"pagina":0,"tamanio":1})
+    assert status==200 and len(first["items"])==1 and first["total"] is None and first["hasMore"] and "X-Total-Count" not in headers,(status,first)
+    status,second,_=request("/organizaciones",token,{"pagina":1,"tamanio":1})
+    assert status==200 and len(second["items"])==1 and not second["hasMore"] and first["items"][0]["id"]!=second["items"][0]["id"],(status,second)
+    assert all(row["locationId"] is None and row["typeIds"]==[] for row in first["items"]+second["items"])
+    for params in ({"pagina":-1},{"tamanio":0},{"tamanio":101},{"pagina":2147483647},{"q":"x"*201}):assert request("/organizaciones",token,params)[0]==400
+    assert request("/organizaciones",create_token(aud="wrong"))[0]==401
+    assert request("/organizaciones",create_token(role="wrong"))[0]==403
+    assert request("/organizaciones",create_token(org=""))[0]==403
+    print("PASS: real Eden translation, two pages and final page, nullable total, invalid parameters and JWT configuration")
+
+def faults():
+    from pathlib import Path
+    mode=Path(os.environ["INTEGRATION_TEST_FAULT_CONTROL"])
+    token=create_token()
+    try:
+        for state,expected in [("bad-auth",503),("down",503),("redirect",502),("invalid",502),("large",502),("slow",504)]:
+            mode.write_text(state)
+            assert request("/integracion/diagnostico/ready")[0]==503,state
+            status,_,_=request("/organizaciones",token)
+            assert status==expected,(state,status)
+            assert request("/integracion/diagnostico/live")[0]==200
+        mode.write_text("fixture")
+        status,value,_=request("/organizaciones",token)
+        assert status==200,(status,value)
+        item=value["items"][0]
+        assert item["typeIds"]==["3","7"] and item["typeId"] is None and item["locationId"]=="45",item
+        mode.write_text("real")
+        assert request("/integracion/diagnostico/ready")[0]==200
+        assert request("/organizaciones",token)[0]==200
+        print("PASS: invalid technical credentials, outage/recovery without restart, redirects, malformed/excessive/slow bodies, liveness independence; multiple-type/geographic translation fixture")
+    finally:mode.write_text("real")
+
 if __name__ == "__main__":
-    success = run_tests()
-    sys.exit(0 if success else 1)
+    if "--targeted" in sys.argv:targeted()
+    elif "--faults" in sys.argv:faults()
+    else:sys.exit(0 if run_tests() else 1)

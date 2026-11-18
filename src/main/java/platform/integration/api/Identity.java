@@ -22,22 +22,6 @@ public class Identity {
         return require("organization_id");
     }
 
-    public boolean hasRole(String role) {
-        return token.getGroups().contains(role);
-    }
-
-    /**
-     * Verifica que el consumidor tenga al menos uno de los roles indicados.
-     * Lanza 403 si ninguno aplica.
-     */
-    public void requireAnyRole(String... roles) {
-        actor(); organization();
-        for (String role : roles) {
-            if (token.getGroups().contains(role)) return;
-        }
-        throw new WebApplicationException(403);
-    }
-
     private String require(String claim) {
         Object value = token.getClaim(claim);
         if (value instanceof jakarta.json.JsonString js) value = js.getString();

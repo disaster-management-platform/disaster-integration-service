@@ -14,7 +14,7 @@ public interface OrganizationPort {
      * @param query  texto libre opcional para filtrar por nombre
      * @param page   página solicitada (base 0)
      * @param size   máximo de elementos por página
-     * @return página canónica con total real
+     * @return página canónica con hasMore y total nullable
      * @throws jakarta.ws.rs.WebApplicationException 502 si la respuesta externa es inválida,
      *         503 si el proveedor no está disponible, 504 si se agota el tiempo
      */

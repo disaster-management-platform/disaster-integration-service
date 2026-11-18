@@ -17,10 +17,11 @@
         "properties": {
           "id":          { "type": "string", "description": "Identificador opaco y estable del proveedor externo" },
           "name":        { "type": "string" },
-          "typeId":      { "type": "string", "nullable": true, "description": "Identificador del tipo de organización" },
+          "typeId":      { "type": "string", "nullable": true, "description": "Único tipo nativo; null si ninguno o varios" },
+          "typeIds":     { "type": "array", "items": { "type": "string" }, "description": "Todos los IDs nativos de tipos; sin fabricar un primario" },
           "acronym":     { "type": "string", "nullable": true },
           "country":     { "type": "string", "nullable": true },
-          "locationId":  { "type": "string", "nullable": true, "description": "Referencia de entidad física (pe_id)" },
+          "locationId":  { "type": "string", "nullable": true, "description": "Referencia gis_location de la única asociación geográfica; null si ninguna o varias" },
           "phone":       { "type": "string", "nullable": true },
           "email":       { "type": "string", "nullable": true },
           "description": { "type": "string", "nullable": true }
@@ -28,12 +29,13 @@
       },
       "OrganizationPage": {
         "type": "object",
-        "required": ["items", "page", "pageSize", "total"],
+        "required": ["items", "page", "pageSize", "total", "hasMore"],
         "properties": {
           "items":    { "type": "array", "items": { "$ref": "#/components/schemas/OrganizationDto" } },
           "page":     { "type": "integer" },
           "pageSize": { "type": "integer" },
-          "total":    { "type": "integer", "description": "Total real de registros en Eden; puede ser estimado cuando Eden no provee el valor exacto" }
+          "total":    { "type": "integer", "nullable": true, "description": "null cuando Eden no ofrece conteo exacto" },
+          "hasMore":  { "type": "boolean" }
         }
       },
       "Health": {
@@ -68,12 +70,13 @@
         "description": "Consulta las organizaciones registradas en Eden. Requiere rol org.read, org.admin o platform.admin.",
         "operationId": "listOrganizations",
         "parameters": [
-          { "name": "q",       "in": "query", "schema": { "type": "string" }, "description": "Filtro por nombre" },
-          { "name": "pagina",  "in": "query", "schema": { "type": "integer", "default": 0 }, "description": "Página base 0" },
-          { "name": "tamanio", "in": "query", "schema": { "type": "integer", "default": 25, "maximum": 100 }, "description": "Tamaño de página" }
+          { "name": "q",       "in": "query", "schema": { "type": "string", "maxLength": 200 }, "description": "Filtro por nombre" },
+          { "name": "pagina",  "in": "query", "schema": { "type": "integer", "default": 0, "minimum": 0 }, "description": "Página base 0" },
+          { "name": "tamanio", "in": "query", "schema": { "type": "integer", "default": 25, "maximum": 100, "minimum": 1 }, "description": "Tamaño de página" }
         ],
         "responses": {
           "200": { "description": "Página de organizaciones canónica", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OrganizationPage" } } } },
+          "400": { "description": "Filtro, página, tamaño o desplazamiento inválidos" },
           "401": { "$ref": "#/components/responses/401" },
           "403": { "$ref": "#/components/responses/403" },
           "502": { "$ref": "#/components/responses/502" },

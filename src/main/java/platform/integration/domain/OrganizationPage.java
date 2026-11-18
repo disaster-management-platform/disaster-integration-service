@@ -1,14 +1,17 @@
 package platform.integration.domain;
 
 import java.util.List;
+import jakarta.json.bind.annotation.JsonbNillable;
 
 /**
  * Resultado paginado de organizaciones.
- * total refleja el número real de registros en Eden; no se trunca ni se oculta.
+ * total es null cuando el proveedor no devuelve un conteo exacto.
  */
+@JsonbNillable
 public record OrganizationPage(
     List<OrganizationDto> items,
     int page,
     int pageSize,
-    int total
+    Integer total,
+    boolean hasMore
 ) { }

@@ -12,6 +12,7 @@ public record OrganizationDto(
     String id,
     String name,
     String typeId,
+    java.util.List<String> typeIds,
     String acronym,
     String country,
     String locationId,
