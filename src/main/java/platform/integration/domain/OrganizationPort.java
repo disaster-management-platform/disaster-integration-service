@@ -19,4 +19,6 @@ public interface OrganizationPort {
      *         503 si el proveedor no está disponible, 504 si se agota el tiempo
      */
     OrganizationPage findOrganizations(String query, int page, int size);
+    OrganizationDto findOrganization(String id);
+    OrganizationTypePage findOrganizationTypes(int page, int size);
 }

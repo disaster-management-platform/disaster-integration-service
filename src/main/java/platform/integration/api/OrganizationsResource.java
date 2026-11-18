@@ -37,4 +37,19 @@ public class OrganizationsResource {
             .header("X-Page-Size", result.pageSize())
             .build();
     }
+    @GET
+    @Path("/tipos")
+    public Object types(@QueryParam("pagina") Integer page, @QueryParam("tamanio") Integer size) {
+        identity.actor();
+        identity.organization();
+        return service.listOrganizationTypes(page, size);
+    }
+
+    @GET
+    @Path("/{id:[1-9][0-9]*}")
+    public Object detail(@PathParam("id") String id) {
+        identity.actor();
+        identity.organization();
+        return service.getOrganization(id);
+    }
 }

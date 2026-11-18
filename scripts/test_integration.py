@@ -10,6 +10,7 @@ Validates:
 """
 
 import os
+from pathlib import Path
 import sys
 import time
 import json
@@ -188,7 +189,26 @@ def faults():
         print("PASS: invalid technical credentials, outage/recovery without restart, redirects, malformed/excessive/slow bodies, liveness independence; multiple-type/geographic translation fixture")
     finally:mode.write_text("real")
 
+def merge_checks():
+    organization=os.environ['INTEGRATION_TEST_ORGANIZATION']
+    auth=create_token(org=organization)
+    before=Path(os.environ['INTEGRATION_TEST_PROXY_LOG']).read_text().splitlines()
+    status,page,_=request('/organizaciones',auth,{'tamanio':100})
+    assert status==200 and page['items']
+    after=Path(os.environ['INTEGRATION_TEST_PROXY_LOG']).read_text().splitlines()
+    calls=[json.loads(line) for line in after[len(before):]]
+    assert len([line for line in calls if line['path'].endswith('/org/organisation.s3json')])==1
+    status,detail,_=request('/organizaciones/'+organization,auth)
+    assert status==200
+    expected=set(json.loads(os.environ['INTEGRATION_TEST_TYPE_IDS']))
+    assert set(detail['typeIds'])==expected and detail['typeId'] is None
+    assert detail['locationId']==os.environ['INTEGRATION_TEST_LOCATION_ID']
+    status,types,_=request('/organizaciones/tipos',auth,{'tamanio':100})
+    assert status==200 and expected <= {item['id'] for item in types['items']}
+    print('PASS organization detail/types and native geographic/multiple-type mapping; one outbound directory call')
+
 if __name__ == "__main__":
-    if "--targeted" in sys.argv:targeted()
+    if "--merge" in sys.argv:merge_checks()
+    elif "--targeted" in sys.argv:targeted()
     elif "--faults" in sys.argv:faults()
     else:sys.exit(0 if run_tests() else 1)

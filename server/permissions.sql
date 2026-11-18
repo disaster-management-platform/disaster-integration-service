@@ -1,0 +1,7 @@
+BEGIN;
+REVOKE ALL ON SCHEMA integration FROM PUBLIC;
+REVOKE ALL ON ALL TABLES IN SCHEMA integration FROM PUBLIC;
+GRANT USAGE ON SCHEMA integration TO integration_api;
+GRANT SELECT,INSERT,UPDATE ON integration.receipts,integration.person_links TO integration_api;
+ALTER DEFAULT PRIVILEGES IN SCHEMA integration REVOKE ALL ON TABLES FROM PUBLIC;
+COMMIT;

@@ -31,4 +31,15 @@ public class OrganizationService {
         String q=query==null||query.isBlank()?null:query.strip();
         return port.findOrganizations(q, p, s);
     }
+    public OrganizationDto getOrganization(String id) {
+        if (id == null || !id.matches("[1-9][0-9]{0,17}")) throw new jakarta.ws.rs.BadRequestException();
+        return port.findOrganization(id);
+    }
+    public OrganizationTypePage listOrganizationTypes(Integer page, Integer size) {
+        int p = page == null ? 0 : page;
+        int s = size == null ? DEFAULT_PAGE_SIZE : size;
+        if (p < 0 || s < 1 || s > MAX_PAGE_SIZE || (long)p * s > Integer.MAX_VALUE - s)
+            throw new jakarta.ws.rs.BadRequestException();
+        return port.findOrganizationTypes(p, s);
+    }
 }

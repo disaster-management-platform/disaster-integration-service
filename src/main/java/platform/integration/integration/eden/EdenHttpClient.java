@@ -3,77 +3,58 @@ package platform.integration.integration.eden;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.json.Json;
 import jakarta.ws.rs.WebApplicationException;
-import java.io.*;
-import java.net.URI;
-import java.net.http.*;
-import java.nio.ByteBuffer;
+import platform.integration.integration.http.BoundedTransport;
+import platform.integration.integration.http.IntegrationBudget;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.Base64;
 
 @ApplicationScoped
 public class EdenHttpClient {
-    private static final int MAX_RESPONSE_BYTES=4*1024*1024;
-    private final Semaphore capacity=new Semaphore(8);
-    private HttpClient client;
+    @Inject IntegrationBudget budget;
+    private BoundedTransport transport;
     private String authorizationHeader;
     private String baseUrl;
 
-    @PostConstruct
-    void start() {
-        URI base=URI.create(setting("EDEN_BASE_URL"));
-        boolean local=Set.of("localhost","127.0.0.1","::1","[::1]").contains(base.getHost());
-        if(base.getHost()==null||base.getUserInfo()!=null||base.getQuery()!=null||base.getFragment()!=null||!("https".equals(base.getScheme())||"http".equals(base.getScheme())&&(local||"true".equals(System.getenv("EDEN_ALLOW_DEVELOPMENT_HTTP")))))throw new IllegalArgumentException("EDEN_BASE_URL requires HTTPS outside authorized development");
-        baseUrl=base.toString().replaceAll("/+$","");
-        authorizationHeader="Basic "+Base64.getEncoder().encodeToString((setting("EDEN_TECH_USER")+":"+setting("EDEN_TECH_PASSWORD")).getBytes(StandardCharsets.UTF_8));
-        client=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).followRedirects(HttpClient.Redirect.NEVER).build();
+    @PostConstruct void start() {
+        baseUrl = BoundedTransport.base(setting("EDEN_BASE_URL"), "true".equals(System.getenv("EDEN_ALLOW_DEVELOPMENT_HTTP")));
+        authorizationHeader = "Basic " + Base64.getEncoder().encodeToString((setting("EDEN_TECH_USER") + ":" + setting("EDEN_TECH_PASSWORD")).getBytes(StandardCharsets.UTF_8));
+        transport = new BoundedTransport(8, 4 * 1024 * 1024);
     }
-    @PreDestroy void stop(){if(client!=null)client.close();}
-    public String get(String path) {
-        if(!capacity.tryAcquire())throw new WebApplicationException(503);
-        CompletableFuture<HttpResponse<byte[]>> pending=null;
+    @PreDestroy void stop() { if (transport != null) transport.close(); }
+
+    public String nativeUrl(String path) {
+        String value = System.getenv("EDEN_PUBLIC_BASE_URL");
+        if (value == null || value.isBlank()) return null;
+        try { return BoundedTransport.base(value, false) + path; }
+        catch (IllegalArgumentException invalid) { return null; }
+    }
+    public String get(String path) { return call(path, authorizationHeader, null, false); }
+    public String delegated(String path, String authorization, String body) { return call(path, authorization, body, true); }
+    private String call(String path, String authorization, String body, boolean delegated) {
         try {
-            HttpRequest request=HttpRequest.newBuilder(URI.create(baseUrl+path)).timeout(Duration.ofSeconds(10)).header("Authorization",authorizationHeader).header("Accept","application/json").GET().build();
-            pending=client.sendAsync(request,info->new BoundedBody());
-            var response=pending.get(10,TimeUnit.SECONDS);
-            int status=response.statusCode();
-            if(status==401||status==403||status>=500)throw new WebApplicationException(503);
-            if(status<200||status>=300)throw new WebApplicationException(502);
-            return new String(response.body(),StandardCharsets.UTF_8);
-        }catch(TimeoutException failure){throw new WebApplicationException(504);}
-        catch(InterruptedException failure){Thread.currentThread().interrupt();throw new WebApplicationException(503);}
-        catch(ExecutionException failure){
-            Throwable cause=failure.getCause();
-            if(cause instanceof HttpTimeoutException)throw new WebApplicationException(504);
-            if(cause instanceof IllegalArgumentException)throw new WebApplicationException(502);
-            throw new WebApplicationException(503);
-        }finally{if(pending!=null&&!pending.isDone())pending.cancel(true);capacity.release();}
+            var result = transport.request(baseUrl, path, authorization, body, budget.remainingMillis());
+            int status = result.status();
+            if (status >= 200 && status < 300) return result.body();
+            if (delegated && status == 403 && path.matches(".*/[1-9][0-9]*\\.s3json(?:\\?.*)?")) throw new WebApplicationException(404);
+            if (status == 401 || status == 403 || status >= 500 || status == 429) throw new WebApplicationException(503);
+            if (status == 404) throw new WebApplicationException(404);
+            if (body != null && (status == 400 || status == 422 || status == 409)) throw new WebApplicationException(status == 409 ? 409 : 422);
+            throw new WebApplicationException(502);
+        } catch (BoundedTransport.Failure failure) { throw new WebApplicationException(failure.status()); }
     }
     public boolean probe() {
-        try(var reader=Json.createReader(new StringReader(get("/org/organisation.json?start=0&limit=1")))) {
-            var array=reader.readArray();
-            if(array.size()>1)return false;
-            return array.isEmpty()||OrganizationAdapter.validIdentity(array.getJsonObject(0));
-        }catch(RuntimeException failure){return false;}
+        try (var reader = Json.createReader(new StringReader(get("/org/organisation.json?start=0&limit=1")))) {
+            var array = reader.readArray();
+            return array.size() <= 1 && (array.isEmpty() || OrganizationAdapter.validIdentity(array.getJsonObject(0)));
+        } catch (RuntimeException failure) { return false; }
     }
-    private static class BoundedBody implements HttpResponse.BodySubscriber<byte[]> {
-        private final CompletableFuture<byte[]> result=new CompletableFuture<>();
-        private final ByteArrayOutputStream bytes=new ByteArrayOutputStream();
-        private Flow.Subscription subscription;
-        public CompletionStage<byte[]> getBody(){return result;}
-        public void onSubscribe(Flow.Subscription value){subscription=value;value.request(1);}
-        public void onNext(List<ByteBuffer> buffers){
-            for(var buffer:buffers){
-                if(buffer.remaining()>MAX_RESPONSE_BYTES-bytes.size()){subscription.cancel();result.completeExceptionally(new IllegalArgumentException("Response limit"));return;}
-                byte[] chunk=new byte[buffer.remaining()];buffer.get(chunk);bytes.writeBytes(chunk);
-            }
-            subscription.request(1);
-        }
-        public void onError(Throwable error){result.completeExceptionally(error);}
-        public void onComplete(){result.complete(bytes.toByteArray());}
+    private static String setting(String key) {
+        String value = System.getenv(key);
+        if (value == null || value.isBlank()) throw new IllegalStateException("Required environment setting: " + key);
+        return value;
     }
-    private String setting(String key){String value=System.getenv(key);if(value==null||value.isBlank())throw new IllegalStateException("Required environment setting: "+key);return value;}
 }

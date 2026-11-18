@@ -18,6 +18,9 @@ public class Errors implements ExceptionMapper<Exception> {
             case 400 -> "Solicitud inválida";
             case 401 -> "Autenticación requerida";
             case 403 -> "Acceso insuficiente";
+            case 409 -> "Conflicto de identidad";
+            case 422 -> "Regla de negocio no satisfecha";
+            case 413 -> "Solicitud demasiado grande";
             case 404 -> "Recurso inexistente o no visible";
             case 502 -> "Respuesta externa inválida";
             case 503 -> "Dependencia temporalmente indisponible";
