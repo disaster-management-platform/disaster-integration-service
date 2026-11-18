@@ -15,10 +15,11 @@ import java.util.UUID;
 public class DisasterAdapter implements DisasterPort {
     private final BoundedTransport transport = new BoundedTransport(4, 4 * 1024 * 1024);
     @Inject IntegrationBudget budget;
+    @Inject platform.integration.integration.http.ClientCredentials credentials;
     @PreDestroy void close() { transport.close(); }
 
     private BoundedTransport.Result call(String path, String body) {
-        String token = System.getenv(body == null ? "DISASTERS_SERVICE_TOKEN" : "DISASTERS_REPORT_TOKEN");
+        String token = credentials.token(body == null ? "DISASTERS_READ_OAUTH" : "DISASTERS_REPORT_OAUTH", transport, budget.remainingMillis());
         String base;
         try { base = BoundedTransport.base(System.getenv("DISASTERS_BASE_URL"), false); }
         catch (IllegalArgumentException e) { throw new WebApplicationException(503); }

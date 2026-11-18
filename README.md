@@ -51,8 +51,8 @@ Build with `mvn clean package` and deploy `target/integration-service.war` to Wi
 | `EDEN_ALLOW_DEVELOPMENT_HTTP` | Optional explicit development-only exception for HTTP outside loopback |
 | `EDEN_DELEGATIONS_FILE` | Private JSON mapping of platform organization IDs to native organization IDs and dedicated credentials |
 | `DISASTERS_BASE_URL` | Owner base URL (no `/api` suffix), HTTPS outside loopback |
-| `DISASTERS_SERVICE_TOKEN` | Owner read credential limited to authorized disaster scopes |
-| `DISASTERS_REPORT_TOKEN` | Separate owner credential with `disasters.integration`, used only for report ingestion |
+| `DISASTERS_READ_OAUTH_TOKEN_ENDPOINT`, `DISASTERS_READ_OAUTH_CLIENT_ID`, `DISASTERS_READ_OAUTH_CLIENT_SECRET` | HTTPS Client Credentials endpoint and least-privilege owner read identity |
+| `DISASTERS_REPORT_OAUTH_TOKEN_ENDPOINT`, `DISASTERS_REPORT_OAUTH_CLIENT_ID`, `DISASTERS_REPORT_OAUTH_CLIENT_SECRET` | Separate owner ingestion identity with `disasters.integration` |
 | `INTEGRATION_DB_HOST`, `INTEGRATION_DB_PORT`, `INTEGRATION_DB_NAME`, `INTEGRATION_DB_CA`, `INTEGRATION_DB_USER`, `INTEGRATION_DB_PASSWORD` | PostgreSQL JNDI configuration in `server/datasource.cli` |
 
 Keep credentials outside Git and restrict local secret files (0600). Do not use administrative Eden credentials in runtime. Each organization entry in `EDEN_DELEGATIONS_FILE` contains `edenOrganizationId`, `username`, `password` for people and, optionally, a nested `coordination` object with its own `username` and `password`. Distinct organizations must use distinct native organization IDs; usernames must be unique across the file. Provision and verify the actual realms and permissions in Eden. Credentials are not forwarded from user JWTs to Eden. Configure separate scoped owner tokens, rotate externally, and never enable development authentication in production.
@@ -78,3 +78,9 @@ After deploying to an isolated environment with synthetic records, set `INTEGRAT
 Install `requests` and `PyJWT` for the Python checks. `scripts/test_integration.py --merge` verifies native organization detail, multiple types and geographic references using `INTEGRATION_TEST_ORGANIZATION`, `INTEGRATION_TEST_TYPE_IDS` (JSON array), `INTEGRATION_TEST_LOCATION_ID` and a metadata-only proxy log (`INTEGRATION_TEST_PROXY_LOG`).
 
 Validated locally with Java 21, Maven WAR packaging, WildFly 42, PostgreSQL 18 and real Eden: V002/V003 over the existing V001 schema, PEO contracts and concurrent idempotency, organization/disaster/record isolation, lost-response update recovery, grouped ORG translation, scoped coordination reads, and normalized report receipt/replay/conflict against the actual Disaster Management API. Only synthetic data was used. The isolated owner ran its existing Development authentication; production service credentials and Gateway routing were not validated by these checks. No remote migrations were applied. Native families, cases, shelters, logistics fulfillment, messaging and the absent event/cross-domain workflows are not certified by this validation.
+
+## Keycloak
+
+Set `JWT_ISSUER`, `JWT_AUDIENCE=integration-service` and `JWT_PUBLIC_KEY_LOCATION` to the issuer and JWKS URI. MicroProfile JWT verifies locally with cached signing keys and maps `role` to groups. Configure external JVM CA trust for private development certificates. Existing organization/disaster/resource checks remain authoritative. Owner requests use separate read and report Client Credentials configurations above; static owner bearer tokens are replaced. Acquisition reuses the bounded transport, requires HTTPS, has a maximum three-second timeout, caches until before expiry and fails as a dependency error without anonymous fallback. No JTA transaction spans token acquisition or HTTP calls.
+
+`tests/OAuthChecks.java` checks real acquisition/cache/renewal with `SECURITY_OAUTH_TOKEN_ENDPOINT`, `SECURITY_OAUTH_CLIENT_ID`, `SECURITY_OAUTH_CLIENT_SECRET` and an isolated five-second client. Compile with Java 21 against `target/classes`, Maven dependencies and a JSON-P implementation; run `OAuthChecks` with external CA trust. No tokens are printed.

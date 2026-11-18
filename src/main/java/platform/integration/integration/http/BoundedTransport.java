@@ -41,15 +41,22 @@ public final class BoundedTransport implements AutoCloseable {
     }
 
     public Result request(String base, String path, String authorization, String body, long timeoutMillis) {
+        return send(base, path, authorization, body, timeoutMillis, "application/json");
+    }
+    public Result form(String base, String path, String body, long timeoutMillis) {
+        return send(base, path, null, body, timeoutMillis, "application/x-www-form-urlencoded");
+    }
+    private Result send(String base, String path, String authorization, String body, long timeoutMillis, String contentType) {
         if (timeoutMillis <= 0) throw new Failure(504);
         if (!path.startsWith("/") || path.startsWith("//") || path.indexOf('#') >= 0) throw new IllegalArgumentException("Invalid dependency path");
         if (!slots.tryAcquire()) throw new Failure(503);
         CompletableFuture<HttpResponse<byte[]>> pending = null;
         try {
             var builder = HttpRequest.newBuilder(URI.create(base + path)).timeout(Duration.ofMillis(timeoutMillis))
-                .header("Accept", "application/json").header("Authorization", authorization);
+                .header("Accept", "application/json");
+            if (authorization != null) builder.header("Authorization", authorization);
             if (body == null) builder.GET();
-            else builder.header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(body));
+            else builder.header("Content-Type", contentType).POST(HttpRequest.BodyPublishers.ofString(body));
             pending = client.sendAsync(builder.build(), info -> new BoundedBody(maxBytes));
             var response = pending.get(timeoutMillis, TimeUnit.MILLISECONDS);
             return new Result(response.statusCode(), new String(response.body(), StandardCharsets.UTF_8));
