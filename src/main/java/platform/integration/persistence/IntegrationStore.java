@@ -8,6 +8,12 @@ import java.time.*;
 public class IntegrationStore {
     @PersistenceContext(unitName="integration") EntityManager em;
     public Receipt claim(UUID id,String organization,String actor,String kind,String command,Integer disaster,String targetPerson) {
+        return claim(id, organization, actor, kind, command, disaster, targetPerson, null);
+    }
+    public Receipt claimResource(UUID id,String organization,String actor,String kind,String command,Integer disaster,String targetResource) {
+        return claim(id, organization, actor, kind, command, disaster, null, targetResource);
+    }
+    private Receipt claim(UUID id,String organization,String actor,String kind,String command,Integer disaster,String targetPerson,String targetResource) {
         if(targetPerson!=null){
             var link=em.find(PersonLink.class,organization+"/"+targetPerson,LockModeType.PESSIMISTIC_WRITE);
             if(link==null)throw new WebApplicationException(404);
@@ -16,10 +22,10 @@ public class IntegrationStore {
                 .setParameter("org",organization).setParameter("target",targetPerson).setParameter("id",id).setMaxResults(1).getResultList();
             if(!outstanding.isEmpty())throw new WebApplicationException(409);
         }
-        em.createNativeQuery("INSERT INTO integration.receipts(id,organization,actor,kind,command,external_uuid,disaster_id,target_person) VALUES(:id,:org,:actor,:kind,:command,:id,:disaster,:target) ON CONFLICT DO NOTHING")
-            .setParameter("id",id).setParameter("org",organization).setParameter("actor",actor).setParameter("kind",kind).setParameter("command",command).setParameter("disaster",disaster).setParameter("target",targetPerson).executeUpdate();
+        em.createNativeQuery("INSERT INTO integration.receipts(id,organization,actor,kind,command,external_uuid,disaster_id,target_person,target_resource) VALUES(:id,:org,:actor,:kind,:command,:id,:disaster,:target,:resource) ON CONFLICT DO NOTHING")
+            .setParameter("id",id).setParameter("org",organization).setParameter("actor",actor).setParameter("kind",kind).setParameter("command",command).setParameter("disaster",disaster).setParameter("target",targetPerson).setParameter("resource",targetResource).executeUpdate();
         Receipt row=em.find(Receipt.class,id,LockModeType.PESSIMISTIC_WRITE);
-        if(row==null||!row.organization.equals(organization)||!row.command.equals(command)||!row.kind.equals(kind)||(!kind.equals("EVENT")&&!row.actor.equals(actor))||!Objects.equals(row.targetPerson,targetPerson))throw new WebApplicationException(409);
+        if(row==null||!row.organization.equals(organization)||!row.command.equals(command)||!row.kind.equals(kind)||(!kind.equals("EVENT")&&!row.actor.equals(actor))||!Objects.equals(row.targetPerson,targetPerson)||!Objects.equals(row.targetResource,targetResource)||!Objects.equals(row.disasterId,disaster))throw new WebApplicationException(409);
         if(row.result!=null)return row;
         if(row.leaseUntil!=null&&row.leaseUntil.isAfter(OffsetDateTime.now(ZoneOffset.UTC)))throw new WebApplicationException(503);
         row.lease=UUID.randomUUID();row.leaseUntil=OffsetDateTime.now(ZoneOffset.UTC).plusSeconds(45);em.flush();return row;

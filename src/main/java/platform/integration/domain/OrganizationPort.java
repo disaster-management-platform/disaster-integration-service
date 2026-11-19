@@ -20,5 +20,7 @@ public interface OrganizationPort {
      */
     OrganizationPage findOrganizations(String query, int page, int size);
     OrganizationDto findOrganization(String id);
+    OrganizationDto detail(String organization,String id);
+    OrganizationDto write(String organization,String target,OrganizationInput input,java.util.UUID operation,java.util.function.BooleanSupplier beginWrite);
     OrganizationTypePage findOrganizationTypes(int page, int size);
 }

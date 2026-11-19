@@ -11,6 +11,7 @@ public class Receipt {
     @Column(nullable=false,columnDefinition="text") public String command;
     @Column(name="external_uuid",nullable=false) public UUID externalUuid;
     @Column(name="target_person",length=30) public String targetPerson;
+    @Column(name="target_resource",length=64) public String targetResource;
     @Column(nullable=false) public boolean dispatched;
     public UUID lease;
     @Column(name="lease_until") public OffsetDateTime leaseUntil;

@@ -70,6 +70,37 @@
           "description": {
             "type": "string",
             "nullable": true
+          },
+          "personnelIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,17}$"
+            },
+            "nullable": true
+          },
+          "volunteerIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,17}$"
+            },
+            "nullable": true
+          },
+          "facilityIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,17}$"
+            },
+            "nullable": true
+          },
+          "disasterIds": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "nullable": true
           }
         }
       },
@@ -548,6 +579,10 @@
           "timeActual": {
             "type": "number",
             "nullable": true
+          },
+          "projectId": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,17}$"
           }
         }
       },
@@ -605,6 +640,10 @@
           "comments": {
             "type": "string",
             "nullable": true
+          },
+          "projectId": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,17}$"
           }
         }
       },
@@ -762,6 +801,204 @@
           "sourceReportId",
           "disasterId"
         ]
+      },
+      "OrganizationInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "acronym": {
+            "type": "string",
+            "maxLength": 16,
+            "nullable": true
+          },
+          "country": {
+            "type": "string",
+            "maxLength": 2,
+            "nullable": true,
+            "pattern": "^[A-Z]{2}$"
+          },
+          "typeId": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,17}$",
+            "nullable": true
+          },
+          "locationId": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,17}$",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string",
+            "maxLength": 200,
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000,
+            "nullable": true
+          }
+        }
+      },
+      "CoordinationTaskInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "disasterId",
+          "name",
+          "priorityId",
+          "statusId"
+        ],
+        "properties": {
+          "disasterId": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "organizationId": {
+            "type": "string",
+            "maxLength": 200,
+            "nullable": true
+          },
+          "projectId": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,17}$",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "statusId": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,17}$"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000,
+            "nullable": true
+          },
+          "priorityId": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,17}$"
+          },
+          "activityId": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,17}$",
+            "nullable": true
+          },
+          "assignee": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "id"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "person",
+                  "team",
+                  "organization"
+                ]
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,17}$"
+              }
+            }
+          },
+          "dueAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "timeEstimated": {
+            "type": "number",
+            "minimum": 0,
+            "nullable": true
+          }
+        }
+      },
+      "CoordinationActivityInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "disasterId",
+          "name",
+          "statusId"
+        ],
+        "properties": {
+          "disasterId": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "organizationId": {
+            "type": "string",
+            "maxLength": 200,
+            "nullable": true
+          },
+          "projectId": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,17}$",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "statusId": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,17}$"
+          },
+          "locationId": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,17}$",
+            "nullable": true
+          },
+          "contactPersonId": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,17}$",
+            "nullable": true
+          },
+          "startsOn": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "endsOn": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "comments": {
+            "type": "string",
+            "maxLength": 4000,
+            "nullable": true
+          }
+        }
       }
     },
     "responses": {
@@ -940,6 +1177,83 @@
             "$ref": "#/components/responses/504"
           }
         }
+      },
+      "post": {
+        "operationId": "createOrganization",
+        "description": "Requires org.create and a dedicated native non-admin creation identity. Newly created organizations require explicit provisioning.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationDto"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "413": {
+            "$ref": "#/components/responses/413"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "502": {
+            "$ref": "#/components/responses/502"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "504": {
+            "$ref": "#/components/responses/504"
+          }
+        }
       }
     },
     "/integracion/diagnostico/live": {
@@ -1043,6 +1357,82 @@
           }
         },
         "description": "org.read, org.admin or platform.admin; global directory only."
+      },
+      "put": {
+        "operationId": "updateOrganization",
+        "description": "Requires org.admin and the explicitly mapped native organization.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,17}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "413": {
+            "$ref": "#/components/responses/413"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "502": {
+            "$ref": "#/components/responses/502"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "504": {
+            "$ref": "#/components/responses/504"
+          }
+        }
       }
     },
     "/organizaciones/tipos": {
@@ -1560,7 +1950,84 @@
             "$ref": "#/components/responses/504"
           }
         },
-        "description": "coordination.read or coordination.write; requires disaster grant and current owner membership, an existing event correlation, and separate scoped Eden coordination credentials. Only projects led by the mapped organization are included. Assignee and contact references remain null until subtype/realm authorization is verified. No mutations exposed."
+        "description": "Requires coordination.read or coordination.write, disaster grant, current membership and a verified event/project correlation. Relationships are resolved only in the authorized native scope."
+      },
+      "post": {
+        "operationId": "createCoordinationTask",
+        "description": "Requires coordination.write and an authorized native project linked to the event. Specify projectId when more than one project is eligible.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoordinationTaskInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoordinationTask"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoordinationTask"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "413": {
+            "$ref": "#/components/responses/413"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "502": {
+            "$ref": "#/components/responses/502"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "504": {
+            "$ref": "#/components/responses/504"
+          }
+        }
       }
     },
     "/coordinacion/actividades": {
@@ -1641,7 +2108,84 @@
             "$ref": "#/components/responses/504"
           }
         },
-        "description": "coordination.read or coordination.write; requires disaster grant and current owner membership, an existing event correlation, and separate scoped Eden coordination credentials. Only projects led by the mapped organization are included. Assignee and contact references remain null until subtype/realm authorization is verified. No mutations exposed."
+        "description": "Requires coordination.read or coordination.write, disaster grant, current membership and a verified event/project correlation. Relationships are resolved only in the authorized native scope."
+      },
+      "post": {
+        "operationId": "createCoordinationActivity",
+        "description": "Requires coordination.write and an authorized native project linked to the event. Specify projectId when more than one project is eligible.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoordinationActivityInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoordinationActivity"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoordinationActivity"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "413": {
+            "$ref": "#/components/responses/413"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "502": {
+            "$ref": "#/components/responses/502"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "504": {
+            "$ref": "#/components/responses/504"
+          }
+        }
       }
     },
     "/integracion/reportes/{category}": {
@@ -1726,6 +2270,162 @@
                 "$ref": "#/components/schemas/ExternalReportInput"
               }
             }
+          }
+        }
+      }
+    },
+    "/coordinacion/tareas/{id}": {
+      "put": {
+        "operationId": "updateCoordinationTask",
+        "description": "Requires coordination.write and the existing record in the authorized project. Uncertain writes are reconciled before another update.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,17}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoordinationTaskInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoordinationTask"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "413": {
+            "$ref": "#/components/responses/413"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "502": {
+            "$ref": "#/components/responses/502"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "504": {
+            "$ref": "#/components/responses/504"
+          }
+        }
+      }
+    },
+    "/coordinacion/actividades/{id}": {
+      "put": {
+        "operationId": "updateCoordinationActivity",
+        "description": "Requires coordination.write and the existing record in the authorized project. Uncertain writes are reconciled before another update.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,17}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoordinationActivityInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoordinationActivity"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "413": {
+            "$ref": "#/components/responses/413"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "502": {
+            "$ref": "#/components/responses/502"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "504": {
+            "$ref": "#/components/responses/504"
           }
         }
       }

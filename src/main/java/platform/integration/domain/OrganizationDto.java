@@ -18,5 +18,9 @@ public record OrganizationDto(
     String locationId,
     String phone,
     String email,
-    String description
+    String description,
+    java.util.List<String> personnelIds,
+    java.util.List<String> volunteerIds,
+    java.util.List<String> facilityIds,
+    java.util.List<Integer> disasterIds
 ) { }

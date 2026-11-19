@@ -63,6 +63,19 @@ public class EdenDelegations {
         return "Basic " + Base64.getEncoder().encodeToString((entry.getString("username") + ":" +
             entry.getString("password")).getBytes(StandardCharsets.UTF_8));
     }
+    public boolean represents(String organization,String nativeId){
+        var entry=organizations.getJsonObject(organization);
+        return entry!=null&&nativeId.equals(entry.getString("edenOrganizationId"));
+    }
+    public String organizationCreator() {
+        String user=System.getenv("EDEN_ORG_CREATE_USER"),password=System.getenv("EDEN_ORG_CREATE_PASSWORD");
+        if(user==null||user.isBlank()||password==null||password.isBlank()||user.equalsIgnoreCase(System.getenv("EDEN_TECH_USER")))throw new WebApplicationException(503);
+        for(String organization:organizations.keySet()){
+            var entry=organizations.getJsonObject(organization);
+            if(user.equalsIgnoreCase(entry.getString("username"))||entry.containsKey("coordination")&&user.equalsIgnoreCase(entry.getJsonObject("coordination").getString("username")))throw new WebApplicationException(503);
+        }
+        return basic(Json.createObjectBuilder().add("username",user).add("password",password).build());
+    }
     public String nativeOrganization(String organization) {
         authorization(organization);
         return organizations.getJsonObject(organization).getString("edenOrganizationId");

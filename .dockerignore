@@ -1,0 +1,15 @@
+**
+!Dockerfile
+!.dockerignore
+!pom.xml
+!src/
+!src/**
+!server/
+!server/datasource.cli
+**/target
+**/*.env
+**/*.key
+**/*.pem
+**/*.p12
+**/*.jks
+**/*.log
