@@ -59,6 +59,13 @@ public class IntegrationStore {
         if(rows.size()>1)throw new WebApplicationException(409);
         return rows.isEmpty()?null:rows.getFirst();
     }
+    public void bindPerson(String organization,String person,UUID identity,Integer disaster,String event){
+        String key=organization+"/"+person;
+        em.createNativeQuery("INSERT INTO integration.person_links(id,organization,person_id,external_uuid,disaster_id,event_id) VALUES(:id,:org,:person,:uuid,:disaster,:event) ON CONFLICT DO NOTHING")
+            .setParameter("id",key).setParameter("org",organization).setParameter("person",person).setParameter("uuid",identity).setParameter("disaster",disaster).setParameter("event",event).executeUpdate();
+        var link=em.find(PersonLink.class,key,LockModeType.PESSIMISTIC_WRITE);
+        if(link==null||!Objects.equals(link.externalUuid,identity)||!Objects.equals(link.disasterId,disaster)||!Objects.equals(link.eventId,event))throw new WebApplicationException(409);
+    }
     public List<PersonLink> links(String organization,List<String> ids) {
         if(ids.isEmpty())return List.of();
         return em.createQuery("select p from PersonLink p where p.organization=:org and p.personId in :ids",PersonLink.class).setParameter("org",organization).setParameter("ids",ids).getResultList();

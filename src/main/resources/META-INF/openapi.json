@@ -999,6 +999,17 @@
             "nullable": true
           }
         }
+      },
+      "PersonBinding": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "disasterId": {
+            "type": "integer",
+            "minimum": 1,
+            "nullable": true
+          }
+        }
       }
     },
     "responses": {
@@ -2393,6 +2404,75 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CoordinationActivity"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "413": {
+            "$ref": "#/components/responses/413"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "502": {
+            "$ref": "#/components/responses/502"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "504": {
+            "$ref": "#/components/responses/504"
+          }
+        }
+      }
+    },
+    "/personas-afectadas/{id}/vincular": {
+      "post": {
+        "operationId": "bindNativePerson",
+        "description": "Requires people.write and verified native record and disaster access.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,17}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonBinding"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonDetail"
                 }
               }
             }

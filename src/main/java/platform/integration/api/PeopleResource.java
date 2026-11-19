@@ -19,5 +19,13 @@ public class PeopleResource {
     @GET @Path("/{id:[1-9][0-9]*}") public Object get(@PathParam("id") String id){return service.get(access(),id);}
     @POST @RolesAllowed("people.write") public Response create(@HeaderParam("Idempotency-Key") String key,JsonObject input){var access=access();var result=service.write(access,null,uuid(key),input);return Response.status(result.status()).entity(result.body()).build();}
     @PUT @Path("/{id:[1-9][0-9]*}") @RolesAllowed("people.write") public Response update(@PathParam("id") String id,@HeaderParam("Idempotency-Key") String key,JsonObject input){var access=access();var result=service.write(access,id,uuid(key),input);return Response.status(result.status()).entity(result.body()).build();}
+    @POST @Path("/{id:[1-9][0-9]*}/vincular") @RolesAllowed("people.write")
+    public Object bind(@PathParam("id") String id,JsonObject input){
+        var access=access();
+        if(input==null||!java.util.Set.of("disasterId").containsAll(input.keySet()))throw new BadRequestException();
+        Integer disaster=null;
+        if(input.containsKey("disasterId")&&!input.isNull("disasterId"))try{disaster=input.getJsonNumber("disasterId").intValueExact();if(disaster<=0)throw new BadRequestException();}catch(RuntimeException invalid){throw new BadRequestException();}
+        return service.bind(access,id,disaster);
+    }
     private UUID uuid(String value){try{var id=UUID.fromString(value);if(!id.toString().equalsIgnoreCase(value)||id.equals(new UUID(0,0)))throw new BadRequestException();return id;}catch(RuntimeException failure){throw new BadRequestException();}}
 }

@@ -21,10 +21,52 @@ public class PeopleAdapter implements PeoplePort {
         var rows=new ArrayList<JsonObject>();for(var value:values){var row=value.asJsonObject();id(row.getString("@id"));rows.add(row);}return rows;
     }
     public List<PeopleRecord> list(String organization,String search,int offset,int limit,List<String> ids){
-        String path="/pr/person.s3json?show_ids=true&maxdepth=0&references=location_id&mcomponents=none&start="+offset+"&limit="+limit;
+        String path="/pr/person.s3json?show_ids=true&maxdepth=0&references=location_id&mcomponents=none&orderby=id&start="+offset+"&limit="+limit;
         if(ids.isEmpty())return List.of();ids.forEach(this::id);path+="&person.id__belongs="+String.join(",",ids);
         if(search!=null)path+="&person.first_name__like="+encode("%"+search+"%");
         var rows=exported(organization,path,"$_pr_person");if(rows.size()>limit)throw new WebApplicationException(502);return rows.stream().map(row->record(organization,row)).toList();
+    }
+    private List<JsonObject> related(String organization,String path,String selector,List<String> ids,String table,String refs,String filter){
+        var result=new ArrayList<JsonObject>();
+        for(int start=0;;start+=100){
+            var page=exported(organization,path+".s3json?show_ids=true&maxdepth=0&mcomponents=none&references="+refs+"&"+selector+"__belongs="+String.join(",",ids)+"&orderby=id&start="+start+"&limit=100"+(filter==null?"":"&"+filter),"$_"+table);
+            if(page.size()>100)throw new WebApplicationException(502);
+            result.addAll(page);if(page.size()<100)return result;
+        }
+    }
+    public JsonObject relationships(String organization,List<String> ids){
+        if(ids.isEmpty())return Json.createObjectBuilder().build();ids.forEach(this::id);
+        var memberships=new HashMap<String,List<String>>();
+        for(String person:ids)memberships.put(person,new ArrayList<>());
+        var familyMemberships=related(organization,"/dvr/group_membership","group_membership.person_id",ids,
+            "pr_group_membership","person_id,group_id","group_membership.group_id%24group_type=7");
+        for(var membership:familyMemberships){
+            String person=reference(membership,"person_id"),group=reference(membership,"group_id");
+            if(!memberships.containsKey(person)||group==null)throw new WebApplicationException(502);
+            memberships.get(person).add(group);
+        }
+        var cases=related(organization,"/dvr/case","case.person_id",ids,"dvr_case","person_id,status_id",null);
+        var shelters=related(organization,"/cr/shelter_registration","shelter_registration.person_id",ids,"cr_shelter_registration","person_id,shelter_id",null);
+        var activities=related(organization,"/dvr/case_activity","case_activity.person_id",ids,"dvr_case_activity","person_id,need_id,status_id",null);
+        var result=Json.createObjectBuilder();
+        for(String person:ids){
+            var familyIds=memberships.get(person).stream().distinct().sorted().toList();
+            var caseIds=Json.createArrayBuilder();var statuses=new HashSet<String>();int open=0;
+            for(var row:cases){String owner=reference(row,"person_id");if(!ids.contains(owner))throw new WebApplicationException(502);if(!person.equals(owner))continue;
+                caseIds.add(row.getString("@id"));String status=reference(row,"status_id");if(status==null)throw new WebApplicationException(502);statuses.add(status);
+                if(!"true".equalsIgnoreCase(raw(row,"archived"))&&raw(row,"closed_on")==null)open++;
+            }
+            var shelterIds=new TreeSet<String>();
+            for(var row:shelters){String owner=reference(row,"person_id");if(!ids.contains(owner))throw new WebApplicationException(502);if(person.equals(owner)&&"2".equals(raw(row,"registration_status"))){String shelter=reference(row,"shelter_id");if(shelter==null)throw new WebApplicationException(502);shelterIds.add(shelter);}}
+            var needs=Json.createArrayBuilder();
+            for(var row:activities){String owner=reference(row,"person_id");if(!ids.contains(owner))throw new WebApplicationException(502);if(!person.equals(owner))continue;
+                var activity=Json.createObjectBuilder().add("id",row.getString("@id"));nullable(activity,"needId",reference(row,"need_id"));nullable(activity,"subject",raw(row,"subject"));nullable(activity,"needDetails",raw(row,"need_details"));nullable(activity,"careDetails",raw(row,"activity_details"));nullable(activity,"statusId",reference(row,"status_id"));needs.add(activity);
+            }
+            var relation=Json.createObjectBuilder().add("familyIds",Json.createArrayBuilder(familyIds)).add("caseIds",caseIds).add("shelterIds",Json.createArrayBuilder(shelterIds)).add("openCases",open).add("needs",needs);
+            nullable(relation,"familyId",familyIds.size()==1?familyIds.getFirst():null);nullable(relation,"caseStatusId",statuses.size()==1?statuses.iterator().next():null);nullable(relation,"shelterId",shelterIds.size()==1?shelterIds.first():null);
+            result.add(person,relation);
+        }
+        return result.build();
     }
     public PeopleRecord get(String organization,String person){return record(organization,nativeGet(organization,person));}
     private JsonObject nativeGet(String organization,String person){
@@ -37,7 +79,11 @@ public class PeopleAdapter implements PeoplePort {
     }
     private void persist(String organization,String path,String type,JsonObject record){
         JsonObject result=object(http.delegated(path,delegations.authorization(organization),Json.createObjectBuilder().add("$_"+type,Json.createArrayBuilder().add(record)).build().toString()));
-        if(!"success".equals(result.getString("status","")))throw new WebApplicationException(502);
+        if(!"success".equals(result.getString("status",""))){
+            String code=result.getString("statuscode","");
+            if("failed".equals(result.getString("status",""))&&Set.of("400","409","422").contains(code))throw new WebApplicationException("409".equals(code)?409:422);
+            throw new WebApplicationException(502);
+        }
     }
     public PeopleRecord create(String organization,UUID operation,PeopleInput input){
         var existing=byUuid(organization,operation,"pr_person");if(existing!=null)return record(organization,existing);
@@ -45,20 +91,20 @@ public class PeopleAdapter implements PeoplePort {
         persist(organization,"/pr/person.s3json","pr_person",value.build());
         var result=byUuid(organization,operation,"pr_person");if(result==null)throw new WebApplicationException(503);return record(organization,result);
     }
-    public PeopleRecord update(String organization,String person,PeopleInput input,UUID operation,UUID expectedIdentity,boolean allowWrite){
+    public PeopleRecord update(String organization,String person,PeopleInput input,UUID operation,UUID expectedIdentity,java.util.function.BooleanSupplier beginWrite){
         JsonObject current=nativeGet(organization,person);
         if(!expectedIdentity.equals(record(organization,current).identity()))throw new WebApplicationException(404);
         String marker="platform.operation."+operation;
         for(var tag:array(current,"$_pr_person_tag"))if(marker.equals(raw(tag.asJsonObject(),"tag")))return record(organization,current);
-        if(!allowWrite)throw new WebApplicationException(503);
         var value=command(input).add("@uuid",current.getString("@uuid"));contacts(value,current,input,operation);
         value.add("$_pr_person_tag",Json.createArrayBuilder().add(Json.createObjectBuilder().add("@uuid","urn:uuid:"+operation).add("tag",marker).add("value","completed")));
+        if(!beginWrite.getAsBoolean())throw new WebApplicationException(503);
         persist(organization,"/pr/person/"+id(person)+".s3json","pr_person",value.build());return get(organization,person);
     }
     private JsonObjectBuilder command(PeopleInput input){
         var value=Json.createObjectBuilder();
         put(value,"first_name",input.firstName());put(value,"last_name",input.lastName());put(value,"pe_label",input.identificationRef());put(value,"date_of_birth",input.birthDate());
-        if(input.locationId()!=null)value.add("$k_location_id",Json.createObjectBuilder().add("@resource","gis_location").add("@id",id(input.locationId())));
+        if(input.locationId()!=null)value.add("location_id",Json.createObjectBuilder().add("@value",id(input.locationId())));
         return value;
     }
     private void contacts(JsonObjectBuilder record,JsonObject current,PeopleInput input,UUID operation){
